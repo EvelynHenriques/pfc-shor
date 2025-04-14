@@ -71,11 +71,3 @@ Um arquivo chamado `shor_resultados.csv` será gerado, contendo:
 
 - A **única parte temporizada** é a simulação da parte quântica (`U @ state` com OpenMP).
 - Isso permite comparação direta com o tempo de execução do circuito real no **IBM Quantum / Qiskit** (sem incluir fila ou tempo de transpilação).
-
----
-
-## 📦 Futuras Melhorias
-
-- Suporte a múltiplos `N` em batch
-- Visualização automática dos resultados em Python
-- Suporte a diferentes políticas de paralelismo (`omp_set_num_threads()`)
