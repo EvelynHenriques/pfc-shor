@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
     int num_threads_inner = 4;  // Número de threads para a execução interna do algoritmo
     const int TENTATIVAS_POR_A = 5;  // Número de tentativas para cada valor de a
     const int NUM_A = 8;    // Número de valores de a a serem testados
+    std::mutex cout_mutex; // Mutex para proteger o acesso ao cout
 
     std::ofstream csv("shor_resultados.csv");
     csv << "thread,a,tentativa,medicao,binario,fase,r,x,f1,f2,tempo,success\n";
@@ -51,7 +52,10 @@ int main(int argc, char* argv[]) {
         // Gera um valor aleatório de 'a' que seja coprimo de N.
         // Usa um offset baseado em tid para gerar seeds diferentes por thread.
         int a = generate_random_coprime(N, tid * 1000);
-        std::cout << "Thread " << tid << " tentando a = " << a << std::endl;
+        {
+            std::lock_guard<std::mutex> cout_lock(cout_mutex);
+            std::cout << "Thread " << tid << " tentando a = " << a << std::endl;
+        }
 
         for (int i = 0; i < TENTATIVAS_POR_A && !found; ++i) {
 
