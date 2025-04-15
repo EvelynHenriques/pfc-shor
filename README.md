@@ -1,35 +1,30 @@
-# 🧮 Shor Modular – Simulação Clássica com OpenMP
+# ⚛️ Shor Modular com Paralelismo por 'a'
 
-Este projeto implementa a **simulação clássica da parte quântica do algoritmo de Shor**, paralelizada com **OpenMP**, utilizando C++. Ele executa todo o ciclo do algoritmo, incluindo:
-
-- Parte quântica (simulada) com medição
-- Estimativa do período `r`
-- Tentativa de fatoração de `N`
-- Registro dos resultados em um arquivo `.csv`
+Este projeto implementa o **algoritmo completo de Shor** com paralelização via **OpenMP**, utilizando **paralelismo externo por múltiplos valores de `a`**. A parte quântica do algoritmo é simulada com multiplicações de matrizes unitárias e executada de forma paralela.
 
 ---
 
-## ⚙️ Requisitos
+## 📌 Destaques
 
-- Compilador C++ com suporte a OpenMP (ex: MinGW-w64, GCC, Clang)
-- Terminal para compilar e rodar
-
----
-
-## 📁 Estrutura dos Arquivos
-
-- `main.cpp` — Executa o algoritmo completo de Shor (paralelismo, tentativas, salvamento)
-- `shor_quantum.cpp` — Parte quântica do algoritmo, modular e paralelizada com OpenMP
-- `shor_quantum.h` — Header da simulação quântica
+- Cada **thread** escolhe um valor de `a` aleatório (coprimo de `N`)
+- Cada `a` é testado por múltiplas tentativas (`TENTATIVAS_POR_A`)
+- A **parte quântica simulada** (produto de matrizes) é temporizada separadamente
+- A lógica de estimativa de `r` e tentativa de fatoração completa o algoritmo
+- O programa **para automaticamente** ao encontrar fatores não triviais
+- Resultados são salvos no CSV: `shor_resultados.csv`
 
 ---
 
 ## 🛠️ Compilação
 
-Para compilar com OpenMP:
+Requisitos:
+
+- Compilador C++ com suporte a **OpenMP** (ex: MinGW-w64, GCC)
+
+### Comando:
 
 ```bash
-g++ -fopenmp -O2 main.cpp shor_quantum.cpp -o shor_modular.exe
+g++ -fopenmp -O2 main.cpp shor_quantum.cpp -o shor_parallel.exe -std=c++17
 ```
 
 ---
@@ -37,37 +32,34 @@ g++ -fopenmp -O2 main.cpp shor_quantum.cpp -o shor_modular.exe
 ## ▶️ Execução
 
 ```bash
-./shor_modular.exe <N>
+./shor_parallel.exe <N>
 ```
 
 **Exemplo:**
+
 ```bash
-./shor_modular.exe 35
+./shor_parallel.exe 35
 ```
 
 ---
 
-## 🔄 Parâmetros e Comportamento
+## 🔧 Parâmetros fixos no código
 
-- `N` é o número a ser fatorado (passado via terminal)
-- `a` é gerado aleatoriamente e **trocado a cada 5 tentativas**
-- Total de tentativas: `MAX_TRIES = 100`
-- Se um par de fatores válidos for encontrado, o algoritmo para
+| Parâmetro               | Valor Padrão | Descrição |
+|------------------------|--------------|-----------|
+| `NUM_A`                | 8            | Número de threads (valores de `a` testados em paralelo) |
+| `TENTATIVAS_POR_A`     | 5            | Quantas vezes tentar cada `a` |
+| `num_threads_inner`    | 4            | Threads internas para multiplicação de matrizes |
 
----
-
-## 📊 Resultado
-
-Um arquivo chamado `shor_resultados.csv` será gerado, contendo:
-
-| tentativa | a  | medicao | binario   | fase   | r  | tempo (s) |
-|-----------|----|---------|-----------|--------|----|-----------|
-| 1         | 2  | 5       | 00000101  | 0.3125 | 13 | 0.00213   |
-| ...       |    |         |           |        |    |           |
+Você pode ajustar esses valores no `main.cpp`.
 
 ---
 
-## 📌 Observações
+## 📊 Saída CSV
 
-- A **única parte temporizada** é a simulação da parte quântica (`U @ state` com OpenMP).
-- Isso permite comparação direta com o tempo de execução do circuito real no **IBM Quantum / Qiskit** (sem incluir fila ou tempo de transpilação).
+Arquivo: `shor_resultados.csv`
+
+| thread | a | tentativa | medicao | binario | fase | r | x | f1 | f2 | tempo | success |
+|--------|---|-----------|---------|---------|------|---|---|----|----|-------|---------|
+| 0      | 2 | 1         | 5       | 00000101| 0.3125 | 8 | 4 | 3 | 5 | 0.00123 | 1 |
+```
