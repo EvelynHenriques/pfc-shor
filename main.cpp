@@ -14,6 +14,9 @@
 #include <vector>
 #include <algorithm>
 #include <random>
+#include <chrono>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 std::vector<int> generate_random_coprimes(int N, int count) {
     std::vector<int> coprimes;
@@ -49,7 +52,7 @@ int main(int argc, char* argv[]) {
     int NUM_A = std::min(NUM_THREADS_EXTERNOS * 10, 500);
 
     std::ofstream csv("shor_resultados.csv");
-    csv << "thread,a,tentativa,medicao,binario,fase,r,x,f1,f2,tempo,success\n";
+    csv << "thread,a,tentativa,medicao,binario,fase,r,x,f1,f2,tempo,tempo_hadamard,tempo_modexp,tempo_qft,success\n";
 
     std::vector<int> valores_a = generate_random_coprimes(N, NUM_A);
     std::cout << "Gerados " << valores_a.size() << " valores a coprimos com N = " << N << "\n";
@@ -57,9 +60,8 @@ int main(int argc, char* argv[]) {
     std::atomic<bool> found(false);
     std::mutex csv_mutex;
 
-    std::cout << "Iniciando paralelismo com " << NUM_THREADS_EXTERNOS 
-              << " threads externas e " << NUM_THREADS_INTERNOS 
-              << " internas por execucao...\n";
+    // Cria pasta de logs temporários
+    fs::create_directory("logs_tmp");
 
     #pragma omp parallel
     {
@@ -77,11 +79,14 @@ int main(int argc, char* argv[]) {
         int tid = omp_get_thread_num();
         int a = valores_a[i];
 
-        #pragma omp critical
-        std::cout << "[Thread " << tid << "] Testando a = " << a << std::endl;
+        auto t_start = std::chrono::high_resolution_clock::now();
+        int tentativas_realizadas = 0;
+        bool success = false;
+        int f1 = 0, f2 = 0;
 
         for (int tentativa = 0; tentativa < TENTATIVAS_POR_A && !found; ++tentativa) {
             QuantumResult qr = run_quantum_shor(a, N, n, NUM_THREADS_INTERNOS);
+            tentativas_realizadas++;
 
             int dim = 1 << n;
             double phase = static_cast<double>(qr.measurement) / dim;
@@ -99,30 +104,53 @@ int main(int argc, char* argv[]) {
             }
 
             int x = static_cast<int>(std::pow(a, best_r / 2)) % N;
-            int f1 = std::gcd(x - 1, N);
-            int f2 = std::gcd(x + 1, N);
+            int g1 = std::gcd(x - 1, N);
+            int g2 = std::gcd(x + 1, N);
 
-            bool success = false;
-            if (best_r % 2 == 0 && x != 1 && x != N - 1 && f1 * f2 == N && f1 != 1 && f2 != 1) {
+            if (best_r % 2 == 0 && x != 1 && x != N - 1 && g1 * g2 == N && g1 != 1 && g2 != 1) {
                 success = true;
                 found = true;
+                f1 = g1;
+                f2 = g2;
             }
 
             {
                 std::lock_guard<std::mutex> lock(csv_mutex);
                 csv << tid << "," << a << "," << (tentativa + 1) << "," << qr.measurement << ","
                     << std::bitset<8>(qr.measurement) << "," << phase << ","
-                    << best_r << "," << x << "," << f1 << "," << f2 << ","
-                    << qr.elapsed_time << "," << (success ? "1" : "0") << "\n";
+                    << best_r << "," << x << "," << g1 << "," << g2 << ","
+                    << qr.elapsed_time << ","
+                    << qr.time_hadamard << "," << qr.time_modexp << "," << qr.time_qft << ","
+                    << (success ? "1" : "0") << "\n";
             }
 
-            if (success) {
-                std::cout << "\nThread " << tid << " encontrou fatores: " << f1 << " e " << f2 << std::endl;
-                break;
-            }
+            if (success) break;
         }
+
+        auto t_end = std::chrono::high_resolution_clock::now();
+        double tempo_total = std::chrono::duration_cast<std::chrono::duration<double>>(t_end - t_start).count();
+
+        auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+        std::string log_filename = "logs_tmp/log_" + std::to_string(tid) + "_" + std::to_string(timestamp) + ".txt";
+        std::ofstream log_file(log_filename);
+
+        log_file << "[Thread " << tid << "] Testou a = " << a
+                 << " por " << tentativas_realizadas << " tentativa(s), "
+                 << "levou " << tempo_total << "s. "
+                 << (success ? "Fatores encontrados: " + std::to_string(f1) + " e " + std::to_string(f2) : "Sem sucesso.")
+                 << "\n";
+
+        log_file.close();
     }
 
+    std::ofstream final_log("log_final.txt");
+    for (const auto& entry : fs::directory_iterator("logs_tmp")) {
+        std::ifstream temp_log(entry.path());
+        final_log << temp_log.rdbuf();
+        temp_log.close();
+    }
+
+    fs::remove_all("logs_tmp");
     csv.close();
 
     if (!found) {

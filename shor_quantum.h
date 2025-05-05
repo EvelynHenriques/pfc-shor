@@ -9,6 +9,9 @@ typedef std::complex<double> complexd;
 struct QuantumResult {
     int measurement;
     double elapsed_time;
+    double time_hadamard;
+    double time_modexp;
+    double time_qft;
 };
 
 QuantumResult run_quantum_shor(int a, int N, int n, int num_threads);
