@@ -11,7 +11,6 @@
 #include <random>
 #include <chrono>
 
-// Função compatível com GCC 4.8
 int gcd(int a, int b) {
     while (b != 0) {
         int t = b;
