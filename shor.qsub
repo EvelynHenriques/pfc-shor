@@ -1,0 +1,15 @@
+#!/bin/bash
+#$ -cwd
+#$ -j y
+#$ -S /bin/bash
+#$ -pe smp 80
+
+NUM=533
+INTERNAL=4
+
+export OMP_NUM_THREADS=$NSLOTS
+
+echo ">>> Rodando: $HOME/shor/shor $NUM $NSLOTS $INTERNAL"
+$HOME/shor/shor $NUM $NSLOTS $INTERNAL
+
+echo ">>> Finalizado em: $(date)"
