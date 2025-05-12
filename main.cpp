@@ -11,6 +11,15 @@
 #include <random>
 #include <chrono>
 
+int gcd(int a, int b) {
+    while (b != 0) {
+        int t = b;
+        b = a % b;
+        a = t;
+    }
+    return std::abs(a);
+}
+
 /* --------------------------------------------------------------------------
  * Gera 'count' valores de a coprimos com N, distribuídos uniformemente
  * pelo intervalo [2, N-2] (amostragem estratificada).
@@ -18,7 +27,7 @@
 std::vector<int> generate_stratified_coprimes(int N, int count) {
     std::vector<int> todos;
     for (int i = 2; i <= N - 2; ++i) {
-        if (__gcd(i, N) == 1) {      
+        if (gcd(i, N) == 1) {      
             todos.push_back(i);
         }
     }
@@ -138,8 +147,8 @@ int main(int argc, char* argv[]) {
             }
 
             int x  = static_cast<int>(std::pow(a, r_est / 2)) % N;
-            int g1 = __gcd(x - 1, N);
-            int g2 = __gcd(x + 1, N);
+            int g1 = gcd(x - 1, N);
+            int g2 = gcd(x + 1, N);
 
             best_qr = qr;
             best_r  = r_est;
