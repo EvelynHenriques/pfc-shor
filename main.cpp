@@ -18,7 +18,7 @@
 std::vector<int> generate_stratified_coprimes(int N, int count) {
     std::vector<int> todos;
     for (int i = 2; i <= N - 2; ++i) {
-        if (__gcd(i, N) == 1) {          // __gcd funciona em GCC 4.8
+        if (__gcd(i, N) == 1) {      
             todos.push_back(i);
         }
     }
