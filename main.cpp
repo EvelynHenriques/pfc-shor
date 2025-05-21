@@ -1,190 +1,93 @@
 #include "shor_quantum.h"
-#include <iostream>
-#include <bitset>
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
+#include <bits/stdc++.h>
 #include <atomic>
 #include <omp.h>
-#include <vector>
-#include <algorithm>
-#include <random>
-#include <chrono>
 
-int gcd(int a, int b) {
-    while (b != 0) {
-        int t = b;
-        b = a % b;
-        a = t;
+/* --- utilidades auxiliares -----------------------------------------*/
+static inline long long gcd(long long a,long long b){
+    while(b){ long long t=b; b=a%b; a=t;} return std::llabs(a);
+}
+static inline long long powmod(long long b,long long e,long long m){
+    long long r=1%m; while(e){ if(e&1) r=(__int128)r*b%m;
+                               b=(__int128)b*b%m; e>>=1;} return r;
+}
+static int contfrac(double x,int N){
+    long long h1=1,h0=0,k1=0,k0=1;
+    while(true){
+        long long a=floor(x);
+        long long h2=a*h1+h0, k2=a*k1+k0;
+        if(k2>N) break;
+        if(std::fabs(x-double(h2)/k2) < 1.0/(2*N)) return k2;
+        h0=h1; h1=h2; k0=k1; k1=k2; x=1.0/(x-a);
     }
-    return std::abs(a);
+    return k1;
+}
+static std::vector<int> coprimes(int N,int lim){
+    std::vector<int> v; for(int a=2;a<N-1;++a) if(gcd(a,N)==1) v.push_back(a);
+    std::shuffle(v.begin(),v.end(),std::mt19937((unsigned)time(nullptr)));
+    if((int)v.size()>lim) v.resize(lim); return v;
 }
 
-// Amostragem estratificada dos coprimos de N
-std::vector<int> generate_stratified_coprimes(int N, int count) {
-    std::vector<int> todos;
-    for (int i = 2; i <= N - 2; ++i) {
-        if (gcd(i, N) == 1) {
-            todos.push_back(i);
-        }
-    }
+/* ------------------------------------------------------------------*/
+int main(int argc,char**argv){
+    if(argc<4){ fprintf(stderr,"uso: %s N total_threads internal_threads\n",argv[0]); return 1;}
+    int N     = atoi(argv[1]);
+    int TOTAL = atoi(argv[2]);          /* threads n�vel externo   */
+    int K     = atoi(argv[3]);          /* threads internas kernel */
+    int A     = std::max(1,TOTAL/K);    /* tasks paralelas de 'a'  */
+    int n     = ceil(log2(N));          /* bits de N               */
 
-    if ((int)todos.size() <= count) {
-        std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
-        std::shuffle(todos.begin(), todos.end(), rng);
-        return todos;
-    }
+    omp_set_nested(1); omp_set_max_active_levels(2); omp_set_num_threads(A);
 
-    std::vector<std::vector<int> > faixas(count);
-    for (int a : todos) {
-        int idx = ((a - 2) * count) / (N - 3);
-        if (idx >= count) idx = count - 1;
-        faixas[idx].push_back(a);
-    }
+    auto As = coprimes(N,std::min(500,A*10));
+    const int SHOTS = 100;
 
-    std::vector<int> selecionados;
-    std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
+    std::atomic<long long> shots(0), succ(0), first_shot(-1);
+    std::atomic<double>    t_first_sec(-1.0);
 
-    for (size_t i = 0; i < faixas.size(); ++i) {
-        if (!faixas[i].empty()) {
-            std::shuffle(faixas[i].begin(), faixas[i].end(), rng);
-            selecionados.push_back(faixas[i].front());
-        }
-    }
+    long long P=0,Q=0;
+    auto t_global_start = std::chrono::high_resolution_clock::now();
 
-    if ((int)selecionados.size() < count) {
-        std::shuffle(todos.begin(), todos.end(), rng);
-        for (int a : todos) {
-            if ((int)selecionados.size() >= count) break;
-            if (std::find(selecionados.begin(), selecionados.end(), a) == selecionados.end()) {
-                selecionados.push_back(a);
-            }
-        }
-    }
-
-    return selecionados;
-}
-
-int main(int argc, char* argv[]) {
-    std::cout << "Iniciando programa Shor com OpenMP...\n";
-
-    if (argc < 4) {
-        std::cerr << "Uso: " << argv[0]
-                  << " <integer_to_factor> <num_threads> <internal_threads>\n";
-        return 1;
-    }
-
-    int N                = std::atoi(argv[1]);
-    int TOTAL_THREADS    = std::atoi(argv[2]);
-    int THREADS_INTERNOS = std::atoi(argv[3]);
-
-    if (N < 3 || TOTAL_THREADS < 1 || THREADS_INTERNOS < 1) {
-        std::cerr << "Parâmetros inválidos.\n";
-        return 1;
-    }
-
-    int THREADS_EXTERNOS = std::max(1, TOTAL_THREADS / THREADS_INTERNOS);
-    int n                = static_cast<int>(std::ceil(std::log2(N)));
-    int TENTATIVAS_POR_A = 100;
-    int NUM_A            = std::min(THREADS_EXTERNOS * 10, 500);
-
-    std::cout << "Número a fatorar: " << N << "\n";
-    std::cout << "Threads: " << TOTAL_THREADS << "  →  "
-              << THREADS_EXTERNOS << " externas + "
-              << THREADS_INTERNOS << " internas\n";
-
-    std::vector<int> valores_a = generate_stratified_coprimes(N, NUM_A);
-    std::cout << "Coprimos gerados: " << valores_a.size() << "\n";
-
-    std::atomic<bool> found(false);
-    std::atomic<int> index(0);
-
+    /* ---------- n�vel 1: tasks externas (candidatos a) ------------ */
     #pragma omp parallel
-    #pragma omp single
-    std::cout << "Threads OpenMP ativas: " << omp_get_num_threads() << "\n";
-
-    #pragma omp parallel num_threads(THREADS_EXTERNOS)
     {
-        int tid = omp_get_thread_num();
+        #pragma omp single
+        for(int a:As)
+            #pragma omp task firstprivate(a)
+            for(int s=0;s<SHOTS;++s){
+                long long id = shots++;
 
-        while (!found.load()) {
-            int idx = index.fetch_add(1);
-            if (idx >= static_cast<int>(valores_a.size())) break;
+                QuantumResult qr = run_quantum_shor(a,N,n,K);
 
-            int a = valores_a[idx];
-            int tentativas_realizadas = 0;
-            bool success = false;
-            int f1 = 0, f2 = 0;
-            QuantumResult best_qr = {};
-            int best_r = 0, best_x = 0;
+                double phase = double(qr.measurement) / double(1ULL<<(2*n));
+                int r = contfrac(phase,N); if(r%2) continue;
 
-            auto t_start = std::chrono::high_resolution_clock::now();
+                long long x = powmod(a,r/2,N), p=0;
+                long long g1=gcd(x-1,N), g2=gcd(x+1,N);
+                if(g1!=1&&g1!=N) p=g1; else if(g2!=1&&g2!=N) p=g2;
 
-            for (int t = 0; t < TENTATIVAS_POR_A; ++t) {
-                if (found.load()) break;
-
-                QuantumResult qr = run_quantum_shor(a, N, n, THREADS_INTERNOS);
-                ++tentativas_realizadas;
-
-                int dim = 1 << n;
-                double phase = static_cast<double>(qr.measurement) / dim;
-
-                int r_est = 0;
-                double best_diff = 1.0;
-                for (int denom = 1; denom <= N; ++denom) {
-                    int num = static_cast<int>(std::round(phase * denom));
-                    double diff = std::fabs(phase - static_cast<double>(num) / denom);
-                    if (diff < best_diff) {
-                        best_diff = diff;
-                        r_est = denom;
+                if(p){
+                    P=p; Q=N/p; succ++;
+                    long long exp=-1;
+                    if(first_shot.compare_exchange_strong(exp,id)){
+                        auto now=std::chrono::high_resolution_clock::now();
+                        t_first_sec.store(
+                          std::chrono::duration<double>(now-t_global_start).count());
                     }
                 }
-
-                int x = static_cast<int>(std::pow(a, r_est / 2)) % N;
-                int g1 = gcd(x - 1, N);
-                int g2 = gcd(x + 1, N);
-
-                best_qr = qr;
-                best_r  = r_est;
-                best_x  = x;
-
-                if (r_est % 2 == 0 && x != 1 && x != N - 1 &&
-                    g1 * g2 == N && g1 != 1 && g2 != 1) {
-                    success = true;
-                    f1 = g1;
-                    f2 = g2;
-                    found.store(true);
-                    break;
-                }
             }
-
-            double tempo_total = std::chrono::duration_cast<std::chrono::duration<double>>(
-                std::chrono::high_resolution_clock::now() - t_start).count();
-
-            std::cout << "----------------------------------------------------\n";
-            std::cout << "[Thread " << tid << "]  a = " << a << "\n";
-            std::cout << "Tentativas: " << tentativas_realizadas
-                      << "   Tempo: " << tempo_total << " s\n";
-
-            if (success) {
-                std::cout << "Fatores: " << f1 << " × " << f2 << "\n";
-                std::cout << "Measurement: " << best_qr.measurement
-                          << " (bin " << std::bitset<16>(best_qr.measurement) << ")\n";
-                std::cout << "r = " << best_r << "   x = " << best_x << "\n";
-                std::cout << "Hadamard " << best_qr.time_hadamard
-                          << "s | ModExp " << best_qr.time_modexp
-                          << "s | QFT "    << best_qr.time_qft << "s\n";
-            } else {
-                std::cout << "Nenhum fator válido.\n";
-            }
-            std::cout << "----------------------------------------------------\n\n";
-        }
+        #pragma omp taskwait
     }
 
-    if (!found) {
-        std::cout << "Nenhuma thread encontrou fatores.\n";
-        return 1;
-    }
+    auto t_global_end = std::chrono::high_resolution_clock::now();
+    double t_total = std::chrono::duration<double>(t_global_end - t_global_start).count();
 
+    std::cout << "N=" << N
+              << "  fatores " << P << ' ' << Q
+              << "  shots " << shots
+              << "  primeiro_shot " << first_shot
+              << "  t_first " << t_first_sec.load() << " s"
+              << "  t_total " << t_total << " s"
+              << "  sucessos " << succ << '\n';
     return 0;
 }

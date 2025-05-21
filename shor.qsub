@@ -1,0 +1,22 @@
+#!/bin/bash
+#$ -cwd
+#$ -j y
+#$ -S /bin/bash
+ulimit -c 0 
+N=$1            # número a fatorar
+TOTAL=$2        # slots (nível externo)
+INTERNAL=$3     # threads internas por shot
+
+BIN="$HOME/shor/versao2/shor_sim"   # ? caminho COMPLETO do executável
+
+if [[ ! -x "$BIN" ]]; then
+    echo "ERRO: binário '$BIN' não encontrado ou sem permissão de execução" >&2
+    exit 1
+fi
+
+export OMP_NUM_THREADS=$NSLOTS      # GridEngine já define NSLOTS = TOTAL
+
+echo ">>> $(date) | host: $(hostname)"
+echo ">>> Rodando N=$N  TOTAL=$TOTAL  INTERNAL=$INTERNAL"
+"$BIN" "$N" "$TOTAL" "$INTERNAL"
+echo ">>> Finalizado   $(date)"
