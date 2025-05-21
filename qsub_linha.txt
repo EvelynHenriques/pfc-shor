@@ -1,0 +1,3 @@
+qsub -pe smp 16 shor.qsub
+
+g++ -O3 -fopenmp -std=c++11 main.cpp shor_quantum.cpp -o shor

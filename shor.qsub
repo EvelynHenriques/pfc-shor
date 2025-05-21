@@ -3,18 +3,18 @@
 #$ -j y
 #$ -S /bin/bash
 ulimit -c 0 
-N=$1            # número a fatorar
-TOTAL=$2        # slots (nível externo)
+N=$1            # nï¿½mero a fatorar
+TOTAL=$2        # slots (nï¿½vel externo)
 INTERNAL=$3     # threads internas por shot
 
-BIN="$HOME/shor/versao2/shor_sim"   # ? caminho COMPLETO do executável
+BIN="$HOME/shor/versao2/shor_sim"   # ? caminho COMPLETO do executï¿½vel
 
 if [[ ! -x "$BIN" ]]; then
-    echo "ERRO: binário '$BIN' não encontrado ou sem permissão de execução" >&2
+    echo "ERRO: binï¿½rio '$BIN' nï¿½o encontrado ou sem permissï¿½o de execuï¿½ï¿½o" >&2
     exit 1
 fi
 
-export OMP_NUM_THREADS=$NSLOTS      # GridEngine já define NSLOTS = TOTAL
+export OMP_NUM_THREADS=$NSLOTS      # GridEngine jï¿½ define NSLOTS = TOTAL
 
 echo ">>> $(date) | host: $(hostname)"
 echo ">>> Rodando N=$N  TOTAL=$TOTAL  INTERNAL=$INTERNAL"
