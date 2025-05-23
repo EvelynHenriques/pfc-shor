@@ -2,19 +2,24 @@
 #$ -cwd
 #$ -j y
 #$ -S /bin/bash
-ulimit -c 0 
-N=$1            # n�mero a fatorar
-TOTAL=$2        # slots (n�vel externo)
-INTERNAL=$3     # threads internas por shot
 
-BIN="$HOME/shor/versao2/shor_sim"   # ? caminho COMPLETO do execut�vel
+ulimit -c 0
+
+N=$1            # número a fatorar
+TOTAL=$2        # núcleos totais (nível externo)
+INTERNAL=$3     # threads internas por simulação (OpenMP dentro do kernel)
+
+BIN="$HOME/shor/versao3/shor"   # caminho do binário
 
 if [[ ! -x "$BIN" ]]; then
-    echo "ERRO: bin�rio '$BIN' n�o encontrado ou sem permiss�o de execu��o" >&2
+    echo "ERRO: binário '$BIN' não encontrado ou sem permissão de execução" >&2
     exit 1
 fi
 
-export OMP_NUM_THREADS=$NSLOTS      # GridEngine j� define NSLOTS = TOTAL
+# Se o usuário esqueceu de definir NSLOTS com -pe smp, usa TOTAL como fallback
+if [[ -z "$OMP_NUM_THREADS" || "$OMP_NUM_THREADS" -lt 1 ]]; then
+    export OMP_NUM_THREADS=$TOTAL
+fi
 
 echo ">>> $(date) | host: $(hostname)"
 echo ">>> Rodando N=$N  TOTAL=$TOTAL  INTERNAL=$INTERNAL"
